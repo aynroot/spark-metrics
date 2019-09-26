@@ -39,14 +39,13 @@ import com.codahale.metrics.{Clock, Metric, Reservoir}
 import com.codahale.metrics.{ExponentiallyDecayingReservoir, SlidingTimeWindowReservoir, SlidingWindowReservoir, UniformReservoir}
 import org.apache.spark.rpc.RpcEndpointRef
 
-import scala.annotation.meta.getter
 
 /**
  * SparkMetric instances implement APIs that look like their Codahale counterparts, but do not store any state. Instead,
  * they just send the data points to the driver, where they are aggregated and published.
  */
 sealed trait SparkMetric extends Metric with Serializable {
-  @(transient @getter) protected val metricsEndpoint: RpcEndpointRef
+  @transient protected val metricsEndpoint: RpcEndpointRef
 
   /**
    * Send a metric data point to the driver. Does not wait for a response from the driver endpoint.
