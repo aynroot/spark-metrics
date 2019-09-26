@@ -39,6 +39,9 @@ import com.codahale.metrics._
 import org.apache.spark.rpc.{RpcEndpoint, RpcEnv}
 import org.apache.spark.{SparkContext, SparkException}
 
+import scala.collection.JavaConverters._
+import scala.collection.concurrent
+
 /**
  * MetricsReceiver is an [[RpcEndpoint]] on the driver node that collects data points for metrics from all the executors
  * and aggregates them using the Codahale metrics library.
@@ -78,10 +81,18 @@ private[metrics] class MetricsReceiver(val sparkContext: SparkContext,
                                        val metricNamespace: String) extends RpcEndpoint {
   override val rpcEnv: RpcEnv = sparkContext.env.rpcEnv
 
+  class LazyWrapper[T](wrapped: => T) {
+    lazy val value: T = wrapped
+  }
+
+  private def wrap[T](value: => T): LazyWrapper[T] = {
+    new LazyWrapper[T](value)
+  }
+
   // Tracks the last observed value for each Gauge
   val lastGaugeValues: ConcurrentHashMap[String, AnyVal] = new ConcurrentHashMap[String, AnyVal]()
   // Keeps track of all the Metric instances that are being published
-  val metrics: ConcurrentHashMap[String, Metric] = new ConcurrentHashMap[String, Metric]()
+  val metrics: concurrent.Map[String, LazyWrapper[Metric]] = new ConcurrentHashMap[String, LazyWrapper[Metric]]().asScala
 
   /**
    * Handle the data points pushed from the executors.
@@ -111,33 +122,32 @@ private[metrics] class MetricsReceiver(val sparkContext: SparkContext,
     }
   }
 
+  def getOrElseUpdate(metricName: String, metric: => Metric): Metric = {
+    val wrapped = wrap(metric)
+    metrics.putIfAbsent(metricName, wrapped) match {
+      case Some(wrappedMetric) => wrappedMetric.value
+      case None =>
+        registerMetricSource(metricName, wrapped.value)
+        wrapped.value
+    }
+  }
+
   def getOrCreateCounter(metricName: String): Counter =
-    metrics.computeIfAbsent(metricName, compute(metricName, new Counter)
-    ).asInstanceOf[Counter]
+    getOrElseUpdate(metricName, new Counter).asInstanceOf[Counter]
 
   def getOrCreateHistogram(metricName: String, reservoirClass: Class[_ <: Reservoir]): Histogram =
-    metrics.computeIfAbsent(
-      metricName,
-      compute(metricName, new Histogram(reservoirClass.newInstance()))
-    ).asInstanceOf[Histogram]
+    getOrElseUpdate(metricName, new Histogram(reservoirClass.newInstance())).asInstanceOf[Histogram]
 
   def getOrCreateMeter(metricName: String): Meter =
-    metrics.computeIfAbsent(metricName, compute(metricName, new Meter)
-    ).asInstanceOf[Meter]
+    getOrElseUpdate(metricName, new Meter).asInstanceOf[Meter]
 
   def getOrCreateTimer(metricName: String, reservoirClass: Class[_ <: Reservoir], clockClass: Class[_ <: Clock]): Timer =
-    metrics.computeIfAbsent(
-      metricName,
-      compute(metricName, new Timer(reservoirClass.newInstance(), clockClass.newInstance()))
-    ).asInstanceOf[Timer]
+    getOrElseUpdate(metricName, new Timer(reservoirClass.newInstance(), clockClass.newInstance())).asInstanceOf[Timer]
 
   def getOrCreateGauge(metricName: String): Gauge[AnyVal] = {
-    metrics.computeIfAbsent(
-      metricName,
-      compute(metricName, new Gauge[AnyVal] {
-        override def getValue: AnyVal = lastGaugeValues.get(metricName)
-      })
-    ).asInstanceOf[Gauge[AnyVal]]
+    getOrElseUpdate(metricName, new Gauge[AnyVal] {
+      override def getValue: AnyVal = lastGaugeValues.get(metricName)
+    }).asInstanceOf[Gauge[AnyVal]]
   }
 
   /**

@@ -60,7 +60,7 @@ class MetricsReceiverTest extends FlatSpec with Matchers with BeforeAndAfter wit
   def testReceiverContainsSingleMetric(name: String, metric: Metric): Unit = {
     metricsReceiver.metrics should have size 1
     metricsReceiver.metrics should contain key name
-    metricsReceiver.metrics should contain value metric
+    metricsReceiver.metrics(name).value shouldBe metric
   }
 
   "getOrCreateCounter" should "create a Counter on the first call and fetch the same one on subsequent calls" in {
@@ -123,13 +123,13 @@ class MetricsReceiverTest extends FlatSpec with Matchers with BeforeAndAfter wit
 
     eventually {
       metricsReceiver.metrics should contain key counterName
-      metricsReceiver.metrics.get(counterName).asInstanceOf[Counter].getCount shouldBe 1
+      metricsReceiver.metrics(counterName).value.asInstanceOf[Counter].getCount shouldBe 1
     }
 
     metricsReceiver.self.send(counterMessage)
 
     eventually {
-      metricsReceiver.metrics.get(counterName).asInstanceOf[Counter].getCount shouldBe 2
+      metricsReceiver.metrics(counterName).value.asInstanceOf[Counter].getCount shouldBe 2
     }
   }
 
@@ -140,13 +140,13 @@ class MetricsReceiverTest extends FlatSpec with Matchers with BeforeAndAfter wit
 
     eventually {
       metricsReceiver.metrics should contain key histogramName
-      metricsReceiver.metrics.get(histogramName).asInstanceOf[Histogram].getCount shouldBe 1
+      metricsReceiver.metrics(histogramName).value.asInstanceOf[Histogram].getCount shouldBe 1
     }
 
     metricsReceiver.self.send(histogramMessage)
 
     eventually {
-      metricsReceiver.metrics.get(histogramName).asInstanceOf[Histogram].getCount shouldBe 2
+      metricsReceiver.metrics(histogramName).value.asInstanceOf[Histogram].getCount shouldBe 2
     }
   }
 
@@ -157,13 +157,13 @@ class MetricsReceiverTest extends FlatSpec with Matchers with BeforeAndAfter wit
 
     eventually {
       metricsReceiver.metrics should contain key meterName
-      metricsReceiver.metrics.get(meterName).asInstanceOf[Meter].getCount shouldBe 1
+      metricsReceiver.metrics(meterName).value.asInstanceOf[Meter].getCount shouldBe 1
     }
 
     metricsReceiver.self.send(meterMessage)
 
     eventually {
-      metricsReceiver.metrics.get(meterName).asInstanceOf[Meter].getCount shouldBe 2
+      metricsReceiver.metrics(meterName).value.asInstanceOf[Meter].getCount shouldBe 2
     }
   }
 
@@ -174,13 +174,13 @@ class MetricsReceiverTest extends FlatSpec with Matchers with BeforeAndAfter wit
 
     eventually {
       metricsReceiver.metrics should contain key timerName
-      metricsReceiver.metrics.get(timerName).asInstanceOf[Timer].getCount shouldBe 1
+      metricsReceiver.metrics(timerName).value.asInstanceOf[Timer].getCount shouldBe 1
     }
 
     metricsReceiver.self.send(timerMessage)
 
     eventually {
-      metricsReceiver.metrics.get(timerName).asInstanceOf[Timer].getCount shouldBe 2
+      metricsReceiver.metrics(timerName).value.asInstanceOf[Timer].getCount shouldBe 2
     }
   }
 
@@ -190,13 +190,13 @@ class MetricsReceiverTest extends FlatSpec with Matchers with BeforeAndAfter wit
 
     eventually {
       metricsReceiver.metrics should contain key gaugeName
-      metricsReceiver.metrics.get(gaugeName).asInstanceOf[Gauge[AnyVal]].getValue shouldBe 1
+      metricsReceiver.metrics(gaugeName).value.asInstanceOf[Gauge[AnyVal]].getValue shouldBe 1
     }
 
     metricsReceiver.self.send(GaugeMessage(gaugeName, 2))
 
     eventually {
-      metricsReceiver.metrics.get(gaugeName).asInstanceOf[Gauge[AnyVal]].getValue shouldBe 2
+      metricsReceiver.metrics(gaugeName).value.asInstanceOf[Gauge[AnyVal]].getValue shouldBe 2
     }
   }
 }
